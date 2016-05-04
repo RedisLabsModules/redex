@@ -1,0 +1,6 @@
+.*.swp
+*.o
+*.xo
+*.so
+*.db
+.vscode
