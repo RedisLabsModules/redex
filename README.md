@@ -126,7 +126,7 @@ The optional `ORDER` subscommand specifies how elements will appear in `destlist
 `NOEFFORT` avoids the extra work, so the order determined is:
 
 |count | end | `NOEFFORT`
-+------+-----+------------
+|------|-----|-----------
 |  +   |  0  | DESC
 |  -   |  0  | ASC
 |  +   | -1  | ASC
