@@ -24,7 +24,7 @@ CC=gcc
 .SUFFIXES: .c .so .o
 
 SRCDIR := $(shell pwd)
-REDISEX = rxkey rxstring rxhash rxlist rxset rxzset rxgeo
+REDISEX = rxkeys rxstrings rxhashes rxlists rxsets rxzsets rxgeo
 
 all: $(REDISEX)
 

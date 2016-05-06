@@ -2,13 +2,13 @@ RedisEx: extension modules to Redis' native data types and commands
 ===
 
 Included modules:
- * [rxkey](#rxkey) - extended key commands
- * [rxstring](#rxstring) - extended String commands
- * [rxhash](#rxhash) - extended Hash commands
- * [rxlist](#rxlist) - extended List commands
- * [rxset](#rxset) - extended Set commands
- * [rxzset](#rxzset) - extended Sorted Set commands
- * [rxgeo](#rxgeo) - extended Geo Set commands
+ * [rxkeys](#rxkeys) - extended keys commands
+ * [rxstrings](#rxstrings) - extended Strings commands
+ * [rxhashes](#rxhash) - extended Hashes commands
+ * [rxlists](#rxlist) - extended Lists commands
+ * [rxsets](#rxset) - extended Sets commands
+ * [rxzsets](#rxzset) - extended Sorted Sets commands
+ * [rxgeo](#rxgeo) - extended Geo Sets commands
 
 Quick start guide
 ---
@@ -17,9 +17,9 @@ Quick start guide
 2. Build the redex modules: `make`
 3. To load a module, Start Redis with the `--loadmodule /path/to/module.so` option, add it as a directive to the configuration file or send a `MODULE LOAD` command.
 
-# rxkey
+# rxkeys
 
-This module provides extended Redis key commands.
+This module provides extended Redis keys commands.
 
 ## `PKEYS pattern`
 
@@ -33,9 +33,9 @@ Deletes keys with names matching `pattern`. `pattern` should be given as a POSIX
 
 **Return:** Integer, the number of keys deleted. 
 
-# rxstring
+# rxstrings
 
-This module provides extended Redis String commands.
+This module provides extended Redis Strings commands.
 
 ## `CHECKAND key value [XX] <command> [arg1] [...]`
 
@@ -68,11 +68,13 @@ Additionally, an optional `charcase` argument can be provided:
  * `LOWERCASE` - uses only lowercase letters
  * `UPPERCASE` - uses only uppercase letters
 
+Credit: Meni Katz
+
 **Reply:** Integer, the length of the String after it was modified.
 
-# rxhash
+# rxhashes
 
-This module provides extended Redis Hash commands.
+This module provides extended Redis Hashes commands.
 
 ## `HGETSET key field value`
 
@@ -80,9 +82,9 @@ Sets the `field` in Hash `key` to `value` and returns the previous value, if any
 
 **Reply:** String, the previous value or NULL if `field` didn't exist.
 
-# rxlist
+# rxlists
 
-This module provides extended Redis List commands.
+This module provides extended Redis Lists commands.
 
 ## `LPUSHCAPPED key cap ele [ele ...]`
 
@@ -135,9 +137,9 @@ The optional `ORDER` subscommand specifies how elements will appear in `destlist
 **Reply:** Integer, the remaining number of elements in 'srclist'.
 Adapted from: redis/src/modules/helloworld.c
 
-# rxset
+# rxsets
 
-This module provides extended Redis Set commands.
+This module provides extended Redis Sets commands.
 
 ## `MSISMEMBER key1 [key2 ...] member`
 
@@ -145,9 +147,9 @@ Checks for `member`'s membership in multiple sets.
 
 **Reply:** Integer, the count of sets to which `member` belongs.
 
-# rxzset
+# rxzsets
 
-This module provides extended Redis Sorted Set commands.
+This module provides extended Redis Sorted Sets commands.
 
 ## `ZPOP key [WITHSCORE]`
 
@@ -193,7 +195,7 @@ A variadic variant for `ZSCORE`, returns the scores of multiple members in a Sor
 
 # rxgeo
 
-This module provides extended Redis Geo Set commands.
+This module provides extended Redis Geo Sets commands.
 
 ## `GEOCLUSTER geoset radius unit min-points [namespace]`
 
