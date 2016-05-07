@@ -4,10 +4,10 @@ RedisEx: extension modules to Redis' native data types and commands
 Included modules:
  * [rxkeys](#rxkeys) - extended keys commands
  * [rxstrings](#rxstrings) - extended Strings commands
- * [rxhashes](#rxhash) - extended Hashes commands
- * [rxlists](#rxlist) - extended Lists commands
- * [rxsets](#rxset) - extended Sets commands
- * [rxzsets](#rxzset) - extended Sorted Sets commands
+ * [rxhashes](#rxhashes) - extended Hashes commands
+ * [rxlists](#rxlists) - extended Lists commands
+ * [rxsets](#rxsets) - extended Sets commands
+ * [rxzsets](#rxzsets) - extended Sorted Sets commands
  * [rxgeo](#rxgeo) - extended Geo Sets commands
 
 Quick start guide
