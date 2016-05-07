@@ -1,5 +1,5 @@
 /*
-* rxzset - extended Redis Sorted Set commands module.
+* rxzsets - extended Redis Sorted Set commands module.
 * Copyright (C) 2016 Redis Labs
 *
 * This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 
-#define RM_MODULE_NAME "rxzset"
+#define RM_MODULE_NAME "rxzsets"
 
 /*
 * Z[REV]POP key [WITHSCORE]

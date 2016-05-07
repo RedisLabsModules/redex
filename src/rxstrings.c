@@ -1,5 +1,5 @@
 /*
-* rxstring - extended Redis String commands module.
+* rxstrings - extended Redis String commands module.
 * Copyright (C) 2016 Redis Labs
 *
 * This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 
-#define RM_MODULE_NAME "rxstring"
+#define RM_MODULE_NAME "rxstrings"
 
 /*
 * CHECKAND key value [XX] <command> [arg1] [...]

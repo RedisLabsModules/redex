@@ -88,13 +88,13 @@ This module provides extended Redis Lists commands.
 
 ## `LPUSHCAPPED key cap ele [ele ...]`
 
-Pushes elements to the head of a list, but trims it from the opposite end to `cap` * afterwards if reached.
+Pushes elements to the head of a list, but trims it from the opposite end to `cap` afterwards, if reached.
 
 **Reply:** Integer, the list's new length.
 
 ## `RPUSHCAPPED key cap ele [ele ...]`
 
-Pushes elements to the tail of a list, but trims it from the opposite end to `cap` * afterwards if reached.
+Pushes elements to the tail of a list, but trims it from the opposite end to `cap` afterwards, if reached.
 
 **Reply:** Integer, the list's new length.
 
@@ -120,10 +120,28 @@ Note: RMPOP returns the elements in head-to-tail order.
 
 **Reply:** Array of popped elements.
 
-## `LSPLICE srclist dstlist count [ATTACH end] [ORDER ASC|DESC|NOEFFORT]`
-Moves `count` from one end of `srclist` to one of `dstlist`'s ends. If less than count elements are available, it moves as much elements as possible. A positive count removes elements from the head of `srclist`, and negative from its end.
+## `LSPLICE srclist dstlist count`
+
+Moves 'count' elements from the tail of 'srclist' to the head of 'dstlist'.
+
+If less than count elements are available, it moves as much elements as possible.
+ 
+**Reply:** Integer, the new length of srclist.
+
+
+Copied from: redis/src/modules/helloworld.c
+
+## `LXSPLICE srclist dstlist count [ATTACH end] [ORDER ASC|DESC|NOEFFORT]`
+Moves `count` from one end of `srclist` to one of `dstlist`'s ends.
+
+If less than count elements are available, it moves as much elements as possible.
+
+A positive count removes elements from the head of `srclist`, and negative from its end.
+
 The optional `ATTACH` subcommand specifies the end of `dstlist` to which elements are added and `end` can be either 0 meaning list's head (the default), or -1 for its tail.
-To maintain the order of elements from `srclist`, LSPLICE may perform extra work depending on the `count` sign and `end`.
+
+To maintain the order of elements from `srclist`, `LSPLICE` may perform extra work depending on the `count` sign and `end`.
+
 The optional `ORDER` subscommand specifies how elements will appear in `destlist`. The default `ASC` order means that the series of attached elements will be ordered as in the source list from left to right. `DESC` will cause the elements to be reversed.
 `NOEFFORT` avoids the extra work, so the order determined is:
 
@@ -135,7 +153,6 @@ The optional `ORDER` subscommand specifies how elements will appear in `destlist
 |  -   | -1  | DESC
 
 **Reply:** Integer, the remaining number of elements in 'srclist'.
-Adapted from: redis/src/modules/helloworld.c
 
 # rxsets
 

@@ -1,5 +1,5 @@
 /*
-* rxhash - extended Redis Hash commands module.
+* rxhashes - extended Redis Hash commands module.
 * Copyright (C) 2016 Redis Labs
 *
 * This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 
-#define RM_MODULE_NAME "rxhash"
+#define RM_MODULE_NAME "rxhashes"
 
 /*
 * HGETSET key field value

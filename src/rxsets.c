@@ -1,5 +1,5 @@
 /*
-* rxset - extended Redis Set commands module.
+* rxsets - extended Redis Set commands module.
 * Copyright (C) 2016 Redis Labs
 *
 * This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 
-#define RM_MODULE_NAME "rxset"
+#define RM_MODULE_NAME "rxsets"
 
 /*
 * MSISMEMBER key1 [key2 ...] member

@@ -1,5 +1,5 @@
 /*
-* rxkey - extended Redis key commands module.
+* rxkeys - extended Redis key commands module.
 * Copyright (C) 2016 Redis Labs
 *
 * This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 #include "../rmutil/util.h"
 #include "../rmutil/vector.h"
 
-#define RM_MODULE_NAME "rxkey"
+#define RM_MODULE_NAME "rxkeys"
 
 /* Helper function: compiles a regex, or dies complaining. */
 int regex_comp(RedisModuleCtx *ctx, regex_t *r, const char *t) {

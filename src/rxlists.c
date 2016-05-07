@@ -1,5 +1,5 @@
 /*
-* rxlist - extended Redis List commands module.
+* rxlists - extended Redis List commands module.
 * Copyright (C) 2016 Redis Labs
 *
 * This program is free software: you can redistribute it and/or modify
@@ -21,10 +21,56 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 
-#define RM_MODULE_NAME "rxlist"
+#define RM_MODULE_NAME "rxlists"
+
+/* LSPLICE srclist dstlist count
+ * Moves 'count' elements from the tail of 'srclist' to the head of
+ * 'dstlist'. If less than count elements are available, it moves as much
+ * elements as possible.
+ * Reply: Integer, the new length of srclist.
+ * Copied from redis/src/modules/helloworld.c
+*/
+int LSpliceCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    if (argc != 4) return RedisModule_WrongArity(ctx);
+
+    RedisModule_AutoMemory(ctx);
+
+    RedisModuleKey *srckey = RedisModule_OpenKey(ctx,argv[1],
+        REDISMODULE_READ|REDISMODULE_WRITE);
+    RedisModuleKey *dstkey = RedisModule_OpenKey(ctx,argv[2],
+        REDISMODULE_READ|REDISMODULE_WRITE);
+
+    /* Src and dst key must be empty or lists. */
+    if ((RedisModule_KeyType(srckey) != REDISMODULE_KEYTYPE_LIST &&
+         RedisModule_KeyType(srckey) != REDISMODULE_KEYTYPE_EMPTY) ||
+        (RedisModule_KeyType(dstkey) != REDISMODULE_KEYTYPE_LIST &&
+         RedisModule_KeyType(dstkey) != REDISMODULE_KEYTYPE_EMPTY))
+    {
+        return RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);
+    }
+
+    long long count;
+    if ((RedisModule_StringToLongLong(argv[3],&count) != REDISMODULE_OK) ||
+        (count < 0))
+    {
+        return RedisModule_ReplyWithError(ctx,"ERR invalid count");
+    }
+
+    while(count-- > 0) {
+        RedisModuleString *ele;
+
+        ele = RedisModule_ListPop(srckey,REDISMODULE_LIST_TAIL);
+        if (ele == NULL) break;
+        RedisModule_ListPush(dstkey,REDISMODULE_LIST_HEAD,ele);
+    }
+
+    size_t len = RedisModule_ValueLength(srckey);
+    RedisModule_ReplyWithLongLong(ctx,len);
+    return REDISMODULE_OK;
+}
 
 /*
-* LSPLICE srclist dstlist count [ATTACH end] [ORDER ASC|DESC|NOEFFORT]
+* LXSPLICE srclist dstlist count [ATTACH end] [ORDER ASC|DESC|NOEFFORT]
 * Moves 'count' from one end of of 'srclist' to one of 'dstlist''s ends.
 * If less than count elements are available, it moves as much
 * elements as possible.
@@ -50,7 +96,7 @@
 * Reply: Integer, the remaining number of elements in 'srclist'.
 * Adapted from: redis/src/modules/helloworld.c
 */
-int LSpliceCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+int LXSpliceCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   if ((argc < 4) || (argc % 2 != 0)) return RedisModule_WrongArity(ctx);
 
   RedisModule_AutoMemory(ctx);
@@ -151,7 +197,7 @@ int LSpliceCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 * Reply: Bulk string, the element.
 */
 int LPopRPushCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-  if (argc == 3) return RedisModule_WrongArity(ctx);
+  if (argc != 3) return RedisModule_WrongArity(ctx);
 
   RedisModule_AutoMemory(ctx);
 
@@ -304,6 +350,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
     return REDISMODULE_ERR;
 
   if (RedisModule_CreateCommand(ctx, "lsplice", LSpliceCommand, "write fast", 1,
+                                2, 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "lxsplice", LXSpliceCommand, "write fast", 1,
                                 2, 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
   if (RedisModule_CreateCommand(ctx, "lpoprpush", LPopRPushCommand,
