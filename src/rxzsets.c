@@ -19,6 +19,8 @@
 
 #include "../redismodule.h"
 #include "../rmutil/util.h"
+#include "../rmutil/vector.h"
+#include "../rmutil/heap.h"
 
 #define RM_MODULE_NAME "rxzsets"
 
@@ -189,6 +191,129 @@ int ZAddCappedGenericCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   return REDISMODULE_OK;
 }
 
+typedef struct {
+    RedisModuleKey *key;
+    RedisModuleString *element;
+    double score;
+    double weight;
+} ZsetEntry;
+
+int __zsetentry_less(char *e1, char *e2) {
+  ZsetEntry *__e1 = (ZsetEntry *) e1;
+  ZsetEntry *__e2 = (ZsetEntry *) e2;
+  double x = __e1->score * __e1->weight - __e2->score * __e2->weight;
+  return x < 0 ? -1 : (x > 0 ? 1 : 0);
+}
+
+int __zsetentry_greater(char *e1, char *e2) {
+  ZsetEntry *__e1 = (ZsetEntry *) e1;
+  ZsetEntry *__e2 = (ZsetEntry *) e2;
+  double x = __e1->score * __e1->weight - __e2->score * __e2->weight;
+  return x < 0 ? 1 : (x > 0 ? -1 : 0);
+}
+
+/*
+* ZUNIONMINK | ZUNIONMAXK k numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]
+* Union multiple sorted sets with top K elements returned.
+* Reply: Array reply, the top k elements (optionally with the score, in case the 'WITHSCORE' option is given).
+*/
+int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  if (argc < 4) return RedisModule_WrongArity(ctx);
+
+  RedisModule_AutoMemory(ctx);
+  int rev = !strcasecmp("zunionmaxk", RedisModule_StringPtrLen(argv[0], NULL));
+
+  long long k;
+  if (RedisModule_StringToLongLong(argv[1], &k) != REDISMODULE_OK || k < 1) {
+    RedisModule_ReplyWithError(ctx, "ERR invalid k");
+    return REDISMODULE_ERR;
+  }
+
+  long long numkeys;
+  if (RedisModule_StringToLongLong(argv[2], &numkeys) != REDISMODULE_OK || numkeys < 1) {
+    RedisModule_ReplyWithError(ctx, "ERR invalid numkeys");
+    return REDISMODULE_ERR;
+  }
+
+  int has_weights = 0, with_scores = 0;
+  if (argc < 3 + numkeys) {
+    RedisModule_ReplyWithError(ctx, "ERR wrong key nums");
+    return REDISMODULE_ERR;
+  } else if (argc > 3 + numkeys) {
+    has_weights = !strcasecmp("weights", RedisModule_StringPtrLen(argv[3 + numkeys], NULL));
+    with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[argc - 1], NULL));
+  }
+
+  // validate argc
+  if (has_weights) {
+    if (argc != 4 + 2 * numkeys + with_scores) {
+      return RedisModule_WrongArity(ctx);
+    }
+  } else {
+    if (argc != 3 + numkeys + with_scores) {
+      return RedisModule_WrongArity(ctx);
+    }
+  }
+
+  Vector *v = NewVector(ZsetEntry, numkeys);
+  for (size_t i = 0; i < numkeys; i++) {
+    RedisModuleKey *key = RedisModule_OpenKey(ctx, argv[3 + i], REDISMODULE_READ);
+    if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_ZSET) {
+      if (RedisModule_ValueLength(key) == 0) {
+        continue;
+      }
+      (rev ? RedisModule_ZsetLastInScoreRange : RedisModule_ZsetFirstInScoreRange)(
+              key, REDISMODULE_NEGATIVE_INFINITE, REDISMODULE_POSITIVE_INFINITE, 0, 0);
+      ZsetEntry entry;
+      entry.key = key;
+      entry.element = RedisModule_ZsetRangeCurrentElement(key, &entry.score);
+      if (has_weights) {
+        if (RedisModule_StringToDouble(argv[4 + numkeys + i], &entry.weight) != REDISMODULE_OK) {
+          RedisModule_ReplyWithError(ctx, "ERR invalid weight");
+          Vector_Free(v);
+          return REDISMODULE_ERR;
+        }
+      } else {
+        entry.weight = 1;
+      }
+      __vector_PushPtr(v, &entry);
+    } else if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY) {
+      continue;
+    } else {
+      RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
+      Vector_Free(v);
+      return REDISMODULE_ERR;
+    }
+  }
+  make_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
+
+  size_t reply_count = 0;
+  RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
+  for (size_t i = 0; i < k && v->top != 0; i++) {
+    // pop from heap
+    pop_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
+    ZsetEntry *entry = (ZsetEntry *) (v->data + ((v->top - 1) * v->elemSize));
+    // reply to client
+    RedisModule_ReplyWithString(ctx, entry->element);
+    reply_count++;
+    if (with_scores) {
+      RedisModule_ReplyWithDouble(ctx, entry->score * entry->weight);
+      reply_count++;
+    }
+    // get the next element
+    if ((rev ? RedisModule_ZsetRangePrev(entry->key) : RedisModule_ZsetRangeNext(entry->key)) == 0) {
+      RedisModule_ZsetRangeStop(entry->key);
+      v->top--;
+    } else {
+      entry->element = RedisModule_ZsetRangeCurrentElement(entry->key, &entry->score);
+      push_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
+    }
+  }
+  RedisModule_ReplySetArrayLength(ctx, reply_count);
+
+  return REDISMODULE_OK;
+}
+
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_Init(ctx, RM_MODULE_NAME, 1, REDISMODULE_APIVER_1) ==
       REDISMODULE_ERR)
@@ -215,6 +340,14 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
     return REDISMODULE_ERR;
   if (RedisModule_CreateCommand(ctx, "zaddrevcapped", ZAddCappedGenericCommand,
                                 "write fast deny-oom", 1, 1,
+                                1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "zunionmink", ZUnionTopKCommand,
+                               "readonly", 1, 1,
+                                1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "zunionmaxk", ZUnionTopKCommand,
+                                "readonly", 1, 1,
                                 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
