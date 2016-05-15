@@ -21,6 +21,8 @@
 
 #include "../redismodule.h"
 #include "../rmutil/util.h"
+#include "../rmutil/test_util.h"
+#include "../rmutil/strings.h"
 
 #define RM_MODULE_NAME "rxstrings"
 
@@ -71,7 +73,7 @@ int CheckAndCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RMUTIL_ASSERT_NOERROR(rep)
 
   int cmdarity = RedisModule_CallReplyInteger(
-      RedisModule_CallReplyArrayElementByPath(rep, "0 1"));
+      RedisModule_CallReplyArrayElementByPath(rep, "1 2"));
   int cmdargc = argc - cmdidx + 1;
   if ((cmdarity > 0 && cmdarity != cmdargc) || (cmdargc < -cmdarity)) {
     RedisModule_ReplyWithError(
@@ -340,6 +342,50 @@ int SetRangeRandCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   return REDISMODULE_OK;
 }
 
+int testCheckAnd(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "checkand", "ccccc", "foo", "", "XX", "SET", "bar");
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "checkand", "cccc", "foo", "", "SET", "bar");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "checkand", "cccc", "foo", "", "SET", "baz");
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "checkand", "cccc", "foo", "bar", "SET", "baz");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+  
+  return 0;
+}
+
+int testSetRangeRand(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "setrangerand", "ccc", "s", "0", "10");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 10);
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+  
+  return 0;
+}
+
+int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  RedisModule_AutoMemory(ctx);
+
+  /* TODO: calling flushall but checking only for db 0. */
+  RedisModuleCallReply *r = RedisModule_Call(ctx, "DBSIZE", "");
+  if (RedisModule_CallReplyInteger(r) != 0) {
+    RedisModule_ReplyWithError(ctx,
+                               "ERR test must be run on an empty instance");
+    return REDISMODULE_ERR;
+  }
+
+  RMUtil_Test(testCheckAnd);
+  RMUtil_Test(testSetRangeRand);
+
+  RedisModule_ReplyWithSimpleString(ctx, "PASS");
+  return REDISMODULE_OK;
+}
+
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_Init(ctx, RM_MODULE_NAME, 1, REDISMODULE_APIVER_1) ==
       REDISMODULE_ERR)
@@ -348,10 +394,12 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_CreateCommand(ctx, "checkand", CheckAndCommand,
                                 "write deny-oom", 1, 1, 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
-
   if (RedisModule_CreateCommand(ctx, "setrangerand", SetRangeRandCommand,
                                 "write fast deny-oom", 1, 1,
                                 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "rxstrings.test", TestModule, "write", 0,
+                                0, 0) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
   return REDISMODULE_OK;

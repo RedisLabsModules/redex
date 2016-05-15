@@ -20,6 +20,8 @@
 
 #include "../redismodule.h"
 #include "../rmutil/util.h"
+#include "../rmutil/strings.h"
+#include "../rmutil/test_util.h"
 
 #define RM_MODULE_NAME "rxlists"
 
@@ -31,42 +33,40 @@
  * Copied from redis/src/modules/helloworld.c
 */
 int LSpliceCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-    if (argc != 4) return RedisModule_WrongArity(ctx);
+  if (argc != 4) return RedisModule_WrongArity(ctx);
 
-    RedisModule_AutoMemory(ctx);
+  RedisModule_AutoMemory(ctx);
 
-    RedisModuleKey *srckey = RedisModule_OpenKey(ctx,argv[1],
-        REDISMODULE_READ|REDISMODULE_WRITE);
-    RedisModuleKey *dstkey = RedisModule_OpenKey(ctx,argv[2],
-        REDISMODULE_READ|REDISMODULE_WRITE);
+  RedisModuleKey *srckey =
+      RedisModule_OpenKey(ctx, argv[1], REDISMODULE_READ | REDISMODULE_WRITE);
+  RedisModuleKey *dstkey =
+      RedisModule_OpenKey(ctx, argv[2], REDISMODULE_READ | REDISMODULE_WRITE);
 
-    /* Src and dst key must be empty or lists. */
-    if ((RedisModule_KeyType(srckey) != REDISMODULE_KEYTYPE_LIST &&
-         RedisModule_KeyType(srckey) != REDISMODULE_KEYTYPE_EMPTY) ||
-        (RedisModule_KeyType(dstkey) != REDISMODULE_KEYTYPE_LIST &&
-         RedisModule_KeyType(dstkey) != REDISMODULE_KEYTYPE_EMPTY))
-    {
-        return RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);
-    }
+  /* Src and dst key must be empty or lists. */
+  if ((RedisModule_KeyType(srckey) != REDISMODULE_KEYTYPE_LIST &&
+       RedisModule_KeyType(srckey) != REDISMODULE_KEYTYPE_EMPTY) ||
+      (RedisModule_KeyType(dstkey) != REDISMODULE_KEYTYPE_LIST &&
+       RedisModule_KeyType(dstkey) != REDISMODULE_KEYTYPE_EMPTY)) {
+    return RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
+  }
 
-    long long count;
-    if ((RedisModule_StringToLongLong(argv[3],&count) != REDISMODULE_OK) ||
-        (count < 0))
-    {
-        return RedisModule_ReplyWithError(ctx,"ERR invalid count");
-    }
+  long long count;
+  if ((RedisModule_StringToLongLong(argv[3], &count) != REDISMODULE_OK) ||
+      (count < 0)) {
+    return RedisModule_ReplyWithError(ctx, "ERR invalid count");
+  }
 
-    while(count-- > 0) {
-        RedisModuleString *ele;
+  while (count-- > 0) {
+    RedisModuleString *ele;
 
-        ele = RedisModule_ListPop(srckey,REDISMODULE_LIST_TAIL);
-        if (ele == NULL) break;
-        RedisModule_ListPush(dstkey,REDISMODULE_LIST_HEAD,ele);
-    }
+    ele = RedisModule_ListPop(srckey, REDISMODULE_LIST_TAIL);
+    if (ele == NULL) break;
+    RedisModule_ListPush(dstkey, REDISMODULE_LIST_HEAD, ele);
+  }
 
-    size_t len = RedisModule_ValueLength(srckey);
-    RedisModule_ReplyWithLongLong(ctx,len);
-    return REDISMODULE_OK;
+  size_t len = RedisModule_ValueLength(srckey);
+  RedisModule_ReplyWithLongLong(ctx, len);
+  return REDISMODULE_OK;
 }
 
 /*
@@ -344,6 +344,130 @@ int PushCappedGenericCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   return REDISMODULE_OK;
 }
 
+int testLSplice(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "lsplice", "ccc", "src", "dst", "3");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 0);
+  r = RedisModule_Call(ctx, "RPUSH", "cccccc", "src", "1", "2", "3", "a", "b");
+  r = RedisModule_Call(ctx, "lsplice", "ccc", "src", "dst", "2");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "dst", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 2);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "a");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "b");
+  r = RedisModule_Call(ctx, "lsplice", "ccc", "src", "dst", "4");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 0);
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "dst", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 5);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "1");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "2");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 2), "3");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 3), "a");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 4), "b");
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testLPopRPush(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "lpoprpush", "cc", "src", "dst");
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "RPUSH", "cccccc", "src", "1", "2", "3", "a", "b");
+  r = RedisModule_Call(ctx, "lpoprpush", "cc", "src", "dst");
+  RMUtil_AssertReplyEquals(r, "1");
+    r = RedisModule_Call(ctx, "lpoprpush", "cc", "src", "dst");
+  RMUtil_AssertReplyEquals(r, "2");
+  r = RedisModule_Call(ctx, "lpoprpush", "cc", "src", "dst");
+  RMUtil_AssertReplyEquals(r, "3");
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "src", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 2);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "a");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "b");
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "dst", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "1");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "2");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 2), "3");
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testLMPop(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "lmpop", "cc", "list", "42");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 0);
+  r = RedisModule_Call(ctx, "RPUSH", "cccccc", "list", "1", "2", "3", "a", "b");
+  r = RedisModule_Call(ctx, "lmpop", "cc", "list", "3");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "1");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "2");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 2), "3");
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "list", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 2);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "a");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "b");
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testLPushCapped(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "lpushcapped", "ccc", "list", "3", "1");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 1);
+  r = RedisModule_Call(ctx, "lpushcapped", "ccc", "list", "3", "2");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 2);  
+  r = RedisModule_Call(ctx, "lpushcapped", "ccc", "list", "3", "3");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "lpushcapped", "ccc", "list", "3", "4");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "list", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "4");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "3");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 2), "2");
+  r = RedisModule_Call(ctx, "lpushcapped", "ccccc", "list", "3", "5", "6", "7");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "LRANGE", "ccc", "list", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "7");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "6");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 2), "5");
+  
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  RedisModule_AutoMemory(ctx);
+
+  /* TODO: calling flushall but checking only for db 0. */
+  RedisModuleCallReply *r = RedisModule_Call(ctx, "DBSIZE", "");
+  if (RedisModule_CallReplyInteger(r) != 0) {
+    RedisModule_ReplyWithError(ctx,
+                               "ERR test must be run on an empty instance");
+    return REDISMODULE_ERR;
+  }
+
+  RMUtil_Test(testLSplice);
+  RMUtil_Test(testLPopRPush);
+  RMUtil_Test(testLMPop);
+  RMUtil_Test(testLPushCapped);
+
+  RedisModule_ReplyWithSimpleString(ctx, "PASS");
+  return REDISMODULE_OK;
+}
+
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_Init(ctx, RM_MODULE_NAME, 1, REDISMODULE_APIVER_1) ==
       REDISMODULE_ERR)
@@ -352,8 +476,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_CreateCommand(ctx, "lsplice", LSpliceCommand, "write fast", 1,
                                 2, 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
-  if (RedisModule_CreateCommand(ctx, "lxsplice", LXSpliceCommand, "write fast", 1,
-                                2, 1) == REDISMODULE_ERR)
+  if (RedisModule_CreateCommand(ctx, "lxsplice", LXSpliceCommand, "write fast",
+                                1, 2, 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
   if (RedisModule_CreateCommand(ctx, "lpoprpush", LPopRPushCommand,
                                 "write fast", 1, 2, 1) == REDISMODULE_ERR)
@@ -374,6 +498,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_CreateCommand(ctx, "rpushcapped", PushCappedGenericCommand,
                                 "write fast deny-oom", 1, 1,
                                 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "rxlists.test", TestModule, "write", 0, 0,
+                                0) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
   return REDISMODULE_OK;

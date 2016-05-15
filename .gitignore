@@ -5,3 +5,4 @@
 *.a
 *.db
 .vscode
+*.rdb

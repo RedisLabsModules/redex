@@ -19,6 +19,8 @@
 
 #include "../redismodule.h"
 #include "../rmutil/util.h"
+#include "../rmutil/test_util.h"
+#include "../rmutil/strings.h"
 
 #define RM_MODULE_NAME "rxzsets"
 
@@ -189,6 +191,106 @@ int ZAddCappedGenericCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   return REDISMODULE_OK;
 }
 
+int testZPop(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "zpop", "c", "zset");
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZADD", "ccccccc", "zset", "1", "1", "2", "2", "3",
+                       "3");
+  r = RedisModule_Call(ctx, "zpop", "c", "zset");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 1);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "1");
+  r = RedisModule_Call(ctx, "ZCARD", "c", "zset");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 2);
+  r = RedisModule_Call(ctx, "zpop", "cc", "zset", "withscore");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 2);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "2");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "2");
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testMZRank(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "mzrank", "cccc", "zset", "1", "3", "4");
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZADD", "ccccccc", "zset", "1", "1", "2", "2", "3",
+                       "3");
+  r = RedisModule_Call(ctx, "mzrank", "cccc", "zset", "1", "3", "4");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "0");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "2");
+  RMUtil_Assert(RedisModule_CallReplyType(RedisModule_CallReplyArrayElement(
+                    r, 2)) == REDISMODULE_REPLY_NULL);
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testMZScore(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "mzscore", "cccc", "zset", "1", "3", "4");
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZADD", "ccccccc", "zset", "1", "1", "2", "2", "3",
+                       "3");
+  r = RedisModule_Call(ctx, "mzscore", "cccc", "zset", "1", "3", "4");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "1");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "3");
+  RMUtil_Assert(RedisModule_CallReplyType(RedisModule_CallReplyArrayElement(
+                    r, 2)) == REDISMODULE_REPLY_NULL);
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testZAddCapped(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "zaddcapped", "cccc", "zset", "3", "1", "1");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 1);
+  r = RedisModule_Call(ctx, "zaddcapped", "cccccc", "zset", "3", "2", "2", "3", "3");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 2);
+  r = RedisModule_Call(ctx, "zaddcapped", "cccc", "zset", "3", "2.5", "foo");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 1);
+  r = RedisModule_Call(ctx, "ZRANGE", "ccc", "zset", "0", "-1");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 0), "1");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 1), "2");
+  RMUtil_AssertReplyEquals(RedisModule_CallReplyArrayElement(r, 2), "foo");
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  RedisModule_AutoMemory(ctx);
+
+  /* TODO: calling flushall but checking only for db 0. */
+  RedisModuleCallReply *r = RedisModule_Call(ctx, "DBSIZE", "");
+  if (RedisModule_CallReplyInteger(r) != 0) {
+    RedisModule_ReplyWithError(ctx,
+                               "ERR test must be run on an empty instance");
+    return REDISMODULE_ERR;
+  }
+
+  RMUtil_Test(testZPop);
+  RMUtil_Test(testMZRank);
+  RMUtil_Test(testMZScore);
+  RMUtil_Test(testZAddCapped);
+
+  RedisModule_ReplyWithSimpleString(ctx, "PASS");
+  return REDISMODULE_OK;
+}
+
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_Init(ctx, RM_MODULE_NAME, 1, REDISMODULE_APIVER_1) ==
       REDISMODULE_ERR)
@@ -216,6 +318,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_CreateCommand(ctx, "zaddrevcapped", ZAddCappedGenericCommand,
                                 "write fast deny-oom", 1, 1,
                                 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "rxzsets.test", TestModule, "write", 0, 0,
+                                0) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
   return REDISMODULE_OK;
