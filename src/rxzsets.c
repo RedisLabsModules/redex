@@ -198,14 +198,14 @@ typedef struct {
     double weight;
 } ZsetEntry;
 
-int __zsetentry_less(char *e1, char *e2) {
+int __zsetentry_less(void *e1, void *e2) {
   ZsetEntry *__e1 = (ZsetEntry *) e1;
   ZsetEntry *__e2 = (ZsetEntry *) e2;
   double x = __e1->score * __e1->weight - __e2->score * __e2->weight;
   return x < 0 ? -1 : (x > 0 ? 1 : 0);
 }
 
-int __zsetentry_greater(char *e1, char *e2) {
+int __zsetentry_greater(void *e1, void *e2) {
   ZsetEntry *__e1 = (ZsetEntry *) e1;
   ZsetEntry *__e2 = (ZsetEntry *) e2;
   double x = __e1->score * __e1->weight - __e2->score * __e2->weight;
@@ -213,15 +213,17 @@ int __zsetentry_greater(char *e1, char *e2) {
 }
 
 /*
-* ZUNIONMINK | ZUNIONMAXK k numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]
+* ZUNIONTOP | ZUNIONREVTOP k numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]
 * Union multiple sorted sets with top K elements returned.
-* Reply: Array reply, the top k elements (optionally with the score, in case the 'WITHSCORE' option is given).
+* Reply: Array reply, the top k elements (optionally with the score, in case the 'WITHSCORES' option is given).
 */
 int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   if (argc < 4) return RedisModule_WrongArity(ctx);
 
   RedisModule_AutoMemory(ctx);
-  int rev = !strcasecmp("zunionmaxk", RedisModule_StringPtrLen(argv[0], NULL));
+  int rev = !strcasecmp("zunionrevtop", RedisModule_StringPtrLen(argv[0], NULL));
+  int (*ZsetScoreRange)(RedisModuleKey*, double, double, int, int) =
+          rev ? RedisModule_ZsetLastInScoreRange : RedisModule_ZsetFirstInScoreRange;
 
   long long k;
   if (RedisModule_StringToLongLong(argv[1], &k) != REDISMODULE_OK || k < 1) {
@@ -262,20 +264,11 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
       if (RedisModule_ValueLength(key) == 0) {
         continue;
       }
-      (rev ? RedisModule_ZsetLastInScoreRange : RedisModule_ZsetFirstInScoreRange)(
-              key, REDISMODULE_NEGATIVE_INFINITE, REDISMODULE_POSITIVE_INFINITE, 0, 0);
+      ZsetScoreRange(key, REDISMODULE_NEGATIVE_INFINITE, REDISMODULE_POSITIVE_INFINITE, 0, 0);
       ZsetEntry entry;
       entry.key = key;
       entry.element = RedisModule_ZsetRangeCurrentElement(key, &entry.score);
-      if (has_weights) {
-        if (RedisModule_StringToDouble(argv[4 + numkeys + i], &entry.weight) != REDISMODULE_OK) {
-          RedisModule_ReplyWithError(ctx, "ERR invalid weight");
-          Vector_Free(v);
-          return REDISMODULE_ERR;
-        }
-      } else {
-        entry.weight = 1;
-      }
+      entry.weight = 1;
       __vector_PushPtr(v, &entry);
     } else if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY) {
       continue;
@@ -283,6 +276,16 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
       RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
       Vector_Free(v);
       return REDISMODULE_ERR;
+    }
+  }
+  if (has_weights) {
+    for (size_t i = 0; i < numkeys; i++) {
+      ZsetEntry *entry = (ZsetEntry *) (v->data + i * v->elemSize);
+      if (RedisModule_StringToDouble(argv[4 + numkeys + i], &entry->weight) != REDISMODULE_OK) {
+        RedisModule_ReplyWithError(ctx, "ERR invalid weight");
+        Vector_Free(v);
+        return REDISMODULE_ERR;
+      }
     }
   }
   make_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
@@ -310,6 +313,7 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
   }
   RedisModule_ReplySetArrayLength(ctx, reply_count);
+  Vector_Free(v);
 
   return REDISMODULE_OK;
 }
@@ -342,12 +346,12 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
                                 "write fast deny-oom", 1, 1,
                                 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
-  if (RedisModule_CreateCommand(ctx, "zunionmink", ZUnionTopKCommand,
-                               "readonly", 1, 1,
+  if (RedisModule_CreateCommand(ctx, "zuniontop", ZUnionTopKCommand,
+                               "readonly getkeys-api", 1, 1,
                                 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
-  if (RedisModule_CreateCommand(ctx, "zunionmaxk", ZUnionTopKCommand,
-                                "readonly", 1, 1,
+  if (RedisModule_CreateCommand(ctx, "zunionrevtop", ZUnionTopKCommand,
+                                "readonly getkeys-api", 1, 1,
                                 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
