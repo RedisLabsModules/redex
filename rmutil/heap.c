@@ -18,7 +18,7 @@ inline char *__vector_GetPtr(Vector *v, size_t pos) {
     return v->data + (pos * v->elemSize);
 }
 
-void __sift_up(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *)) {
+void __sift_up(Vector *v, size_t first, size_t last, int (*cmp)(void *, void *)) {
     size_t len = last - first;
     if (len > 1) {
         len = (len - 2) / 2;
@@ -39,7 +39,7 @@ void __sift_up(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *))
     }
 }
 
-void __sift_down(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *), size_t start) {
+void __sift_down(Vector *v, size_t first, size_t last, int (*cmp)(void *, void *), size_t start) {
     // left-child of __start is at 2 * __start + 1
     // right-child of __start is at 2 * __start + 2
     size_t len = last - first;
@@ -84,7 +84,7 @@ void __sift_down(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *
 }
 
 
-void make_heap(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *)) {
+void Make_Heap(Vector *v, size_t first, size_t last, int (*cmp)(void *, void *)) {
     if (last - first > 1) {
         // start from the first parent, there is no need to consider children
         for (int start = (last - first - 2) / 2; start >= 0; --start) {
@@ -94,12 +94,12 @@ void make_heap(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *))
 }
 
 
-inline void push_heap(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *)) {
+inline void Heap_Push(Vector *v, size_t first, size_t last, int (*cmp)(void *, void *)) {
     __sift_up(v, first, last, cmp);
 }
 
 
-inline void pop_heap(Vector *v, size_t first, size_t last, int (*cmp)(char *, char *)) {
+inline void Heap_Pop(Vector *v, size_t first, size_t last, int (*cmp)(void *, void *)) {
     if (last - first > 1) {
         SWAP(__vector_GetPtr(v, first), __vector_GetPtr(v, --last), v->elemSize);
         __sift_down(v, first, last, cmp, first);

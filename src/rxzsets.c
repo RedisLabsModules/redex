@@ -288,13 +288,13 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
       }
     }
   }
-  make_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
+  Make_Heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
 
   size_t reply_count = 0;
   RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
   for (size_t i = 0; i < k && v->top != 0; i++) {
     // pop from heap
-    pop_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
+    Heap_Pop(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
     ZsetEntry *entry = (ZsetEntry *) (v->data + ((v->top - 1) * v->elemSize));
     // reply to client
     RedisModule_ReplyWithString(ctx, entry->element);
@@ -309,7 +309,7 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
       v->top--;
     } else {
       entry->element = RedisModule_ZsetRangeCurrentElement(entry->key, &entry->score);
-      push_heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
+      Heap_Push(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
     }
   }
   RedisModule_ReplySetArrayLength(ctx, reply_count);
