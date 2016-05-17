@@ -19,6 +19,7 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 #include "../rmutil/strings.h"
+#include "../rmutil/test_util.h"
 
 #define RM_MODULE_NAME "rxgeo"
 
@@ -91,7 +92,7 @@ int GeoClusterCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return REDISMODULE_ERR;
   }
 
-  /* Delete the clusters & list, if any. */
+  /* Delete the namespace's clusters & list, if any. */
   RedisModuleString *krmsCL = RMUtil_CreateFormattedString(
       ctx, "%.*s:{%.*s}:CL", nslen, nsstr, klen, kstr);
   RedisModuleKey *keyCL =
@@ -210,6 +211,7 @@ int GeoClusterCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RedisModule_FreeString(ctx, q);
     RedisModule_FreeString(ctx, qseeds);
     RedisModule_FreeString(ctx, Cj);
+    RedisModule_DeleteKey(keyQseeds);
     RedisModule_CloseKey(keyQseeds);
     RedisModule_ZsetRangeNext(key);
   }
@@ -221,6 +223,64 @@ int GeoClusterCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   return REDISMODULE_OK;
 }
 
+int testGeoCluster(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "0", "0", "1-1");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "0.01", "0", "1-2");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "0.01", "0.01", "1-3");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "0", "0.01", "1-4");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "10", "0", "2-1");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "10.01", "0", "2-2");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "10.01", "0.01", "2-3");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "0", "10", "3-1");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "50.01", "50", "4-1");
+  r = RedisModule_Call(ctx, "GEOADD", "cccc", "geoset", "50.01", "50.01", "4-2");
+  r = RedisModule_Call(ctx, "geocluster", "ccccc", "geoset", "100", "km", "3", "test");
+
+  r = RedisModule_Call(ctx, "LLEN", "c", "test:{geoset}:CL");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 2);
+  r = RedisModule_Call(ctx, "ZCARD", "c", "test:{geoset}:1");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 4);
+  r = RedisModule_Call(ctx, "ZCARD", "c", "test:{geoset}:2");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:1", "1-1");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:1", "1-2");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:1", "1-3");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:1", "1-4");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:2", "2-1");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:2", "2-2");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+  r = RedisModule_Call(ctx, "ZSCORE", "cc", "test:{geoset}:2", "2-3");
+  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_NULL);
+
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  RedisModule_AutoMemory(ctx);
+
+  /* TODO: calling flushall but checking only for db 0. */
+  RedisModuleCallReply *r = RedisModule_Call(ctx, "DBSIZE", "");
+  if (RedisModule_CallReplyInteger(r) != 0) {
+    RedisModule_ReplyWithError(ctx,
+                               "ERR test must be run on an empty instance");
+    return REDISMODULE_ERR;
+  }
+
+  RMUtil_Test(testGeoCluster);
+
+  RedisModule_ReplyWithSimpleString(ctx, "PASS");
+  return REDISMODULE_OK;
+}
+
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_Init(ctx, RM_MODULE_NAME, 1, REDISMODULE_APIVER_1) ==
       REDISMODULE_ERR)
@@ -228,6 +288,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
 
   if (RedisModule_CreateCommand(ctx, "geocluster", GeoClusterCommand,
                                 "write deny-oom", 1, 1, 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "rxgeo.test", TestModule, "write", 0, 0,
+                                0) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
   return REDISMODULE_OK;

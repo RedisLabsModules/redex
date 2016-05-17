@@ -20,6 +20,7 @@
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 #include "../rmutil/vector.h"
+#include "../rmutil/test_util.h"
 
 #define RM_MODULE_NAME "rxkeys"
 
@@ -41,7 +42,8 @@ int regex_comp(RedisModuleCtx *ctx, regex_t *r, const char *t) {
 
 /* Helper function: matches CallReplyStrings in a CallReplyArray and returns
  * RedisStrings. */
-Vector *regex_match(RedisModuleCtx *ctx, RedisModuleCallReply *rmcr, regex_t *r) {
+Vector *regex_match(RedisModuleCtx *ctx, RedisModuleCallReply *rmcr,
+                    regex_t *r) {
   size_t len = RedisModule_CallReplyLength(rmcr);
   Vector *vs = NewVector(void *, len);
 
@@ -98,7 +100,6 @@ int PKeysCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RedisModuleCallReply *rkeys = RedisModule_CallReplyArrayElement(rep, 1);
     Vector *matches = regex_match(ctx, rkeys, &regex);
     size_t matched = Vector_Size(matches);
-    
 
     /* Add finding to reply. */
     length += matched;
@@ -161,15 +162,70 @@ int PDelCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     /* Explicit housekeeping. */
     while (matched--) {
       RedisModuleString *str;
-      Vector_Get(matches,matched,&str);
-          (RedisModuleString *)&matches
-              ->data[matched * sizeof(RedisModuleString *)];
+      Vector_Get(matches, matched, &str);
+      (RedisModuleString *)&matches
+          ->data[matched * sizeof(RedisModuleString *)];
       RedisModule_FreeString(ctx, str);
     }
     RedisModule_FreeCallReply(rep);
   } while (lcursor);
 
   RedisModule_ReplyWithLongLong(ctx, deleted);
+  return REDISMODULE_OK;
+}
+
+int testPKeys(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "pkeys", "c", "^.*$");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 0);
+
+  r = RedisModule_Call(ctx, "MSET", "cccccc", "foo", "", "bar", "", "baz", "");
+  r = RedisModule_Call(ctx, "pkeys", "c", "^.*$");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 3);
+  r = RedisModule_Call(ctx, "pkeys", "c", "^f.*");
+  RMUtil_Assert(RedisModule_CallReplyLength(r) == 1);
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
+int testPDel(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "pdel", "c", "^.*$");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 0);
+
+  r = RedisModule_Call(ctx, "MSET", "cccccc", "foo", "", "bar", "", "baz", "");
+  r = RedisModule_Call(ctx, "pdel", "c", "^f.*$");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 1);
+  r = RedisModule_Call(ctx, "DBSIZE", "");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 2);
+
+  r = RedisModule_Call(ctx, "pdel", "c", "^.*z$");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 1);
+  r = RedisModule_Call(ctx, "DBSIZE", "");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 1);
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+  
+  return 0;
+}
+
+int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  RedisModule_AutoMemory(ctx);
+
+  /* TODO: calling flushall but checking only for db 0. */
+  RedisModuleCallReply *r = RedisModule_Call(ctx, "DBSIZE", "");
+  if (RedisModule_CallReplyInteger(r) != 0) {
+    RedisModule_ReplyWithError(ctx,
+                               "ERR test must be run on an empty instance");
+    return REDISMODULE_ERR;
+  }
+
+  RMUtil_Test(testPKeys);
+  RMUtil_Test(testPDel);
+
+  RedisModule_ReplyWithSimpleString(ctx, "PASS");
   return REDISMODULE_OK;
 }
 
@@ -181,9 +237,11 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (RedisModule_CreateCommand(ctx, "pkeys", PKeysCommand, "readonly", 0, 0,
                                 0) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
-
   if (RedisModule_CreateCommand(ctx, "pdel", PDelCommand, "write", 0, 0, 0) ==
       REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "rxkeys.test", TestModule, "write", 0, 0,
+                                0) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
   return REDISMODULE_OK;
