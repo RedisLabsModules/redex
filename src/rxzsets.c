@@ -220,7 +220,10 @@ int __zsetentry_greater(void *e1, void *e2) {
 * Reply: Array reply, the top k elements (optionally with the score, in case the 'WITHSCORES' option is given).
 */
 int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-  if (argc < 4) return RedisModule_WrongArity(ctx);
+  if (argc < 4) {
+    /* TODO: handle this once the getkey-api allows signalling errors */
+    return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
+  }
 
   RedisModule_AutoMemory(ctx);
   int rev = !strcasecmp("zunionrevtop", RedisModule_StringPtrLen(argv[0], NULL));
@@ -241,8 +244,8 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   int has_weights = 0, with_scores = 0;
   if (argc < 3 + numkeys) {
-    RedisModule_ReplyWithError(ctx, "ERR wrong key nums");
-    return REDISMODULE_ERR;
+    /* TODO: handle this once the getkey-api allows signalling errors */
+    return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
   } else if (argc > 3 + numkeys) {
     has_weights = !strcasecmp("weights", RedisModule_StringPtrLen(argv[3 + numkeys], NULL));
     with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[argc - 1], NULL));
@@ -251,12 +254,21 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   // validate argc
   if (has_weights) {
     if (argc != 4 + 2 * numkeys + with_scores) {
-      return RedisModule_WrongArity(ctx);
+      /* TODO: handle this once the getkey-api allows signalling errors */
+      return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
     }
   } else {
     if (argc != 3 + numkeys + with_scores) {
-      return RedisModule_WrongArity(ctx);
+      /* TODO: handle this once the getkey-api allows signalling errors */
+      return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
     }
+  }
+
+  if (RedisModule_IsKeysPositionRequest(ctx)) {
+    for (int i = 0; i < numkeys; i++) {
+      RedisModule_KeyAtPos(ctx, 3 + i);
+    }
+    return REDISMODULE_OK;
   }
 
   Vector *v = NewVector(ZsetEntry, numkeys);
