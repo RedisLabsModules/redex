@@ -262,6 +262,22 @@ A variadic variant for `ZSCORE`, returns the scores of multiple members in a Sor
 
 **Reply:** Array of Strings.
 
+## `ZUNIONTOP K numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]`
+
+> Time complexity: O(numkeys*log(N) + K*log(numkeys)) where N is the number of elements in a Sorted Set.
+
+Union multiple sorted sets with min K elements returned.
+
+**Reply:** Array reply, the top k elements (optionally with the score, in case the 'WITHSCORES' option is given).
+
+## `ZUNIONREVTOP K numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]`
+
+> Time complexity: O(numkeys*log(N) + K*log(numkeys)) where N is the number of elements in a Sorted Set.
+
+Union multiple sorted sets with max K elements returned.
+
+**Reply:** Array reply, the top k elements (optionally with the score, in case the 'WITHSCORES' option is given).
+
 # rxgeo
 
 This module provides extended Redis Geo Sets commands.
