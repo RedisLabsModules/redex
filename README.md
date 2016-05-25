@@ -66,6 +66,16 @@ Note: the key shouldn't be repeated for the executed command.
 **Reply:** Null if not equal or for non existing key when the `XX` flag is used.
 On success, the reply depends on the actual command executed.
 
+## `PREPEND key value`
+
+> Time complexity: O(1). The amortized time complexity is O(1) assuming the prepended value is small and the already present value is of any size, since the dynamic string library used by Redis will double the free space available on every reallocation.
+
+Prepends a value to a String key.
+
+If key does not exist it is created and set as an empty string, so PREPEND will be similar to SET in this special case.
+
+**Reply:** Integer, the length of the string after the prepend operation.
+
 ## `SETRANGERAND key offset length charset charcase`
 
 > Time complexity: O(N) where N is the size of the range generated.
