@@ -135,6 +135,57 @@ int CheckAndCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   return REDISMODULE_OK;
 }
 
+/*
+* PREPEND key value
+* Prepends a value to a String key.
+* If key does not exist it is created and set as an empty string,
+* so PREPEND will be similar to SET in this special case.
+* Integer Reply: the length of the string after the prepend operation.
+*/
+int PrependCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  if (argc != 3) {
+    return RedisModule_WrongArity(ctx);
+  }
+  RedisModule_AutoMemory(ctx);
+
+  /* Obtain key and extract arg. */
+  RedisModuleKey *key =
+      RedisModule_OpenKey(ctx, argv[1], REDISMODULE_READ | REDISMODULE_WRITE);
+  size_t argLen;
+  const char* argPtr = RedisModule_StringPtrLen(argv[2], &argLen);
+
+  /* SET if empty */
+  if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY) {
+    if (RedisModule_StringSet(key, argv[2]) == REDISMODULE_OK) {
+      RedisModule_ReplyWithLongLong(ctx, argLen);
+      return REDISMODULE_OK;
+    }
+    RedisModule_ReplyWithError(ctx, "ERR RM_StringSet failed");
+    return REDISMODULE_OK;
+  }
+
+  /* Otherwise key must be a string. */
+  if (RedisModule_KeyType(key) != REDISMODULE_KEYTYPE_STRING) {
+    RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
+    return REDISMODULE_OK;
+  }
+
+  /* Prepend the string: 1) expand string, 2) shift oldVal via memmove, 3) prepend arg */
+  size_t valLen = RedisModule_ValueLength(key);
+  size_t newLen = argLen + valLen;
+  if (RedisModule_StringTruncate(key, newLen) != REDISMODULE_OK) {
+    RedisModule_ReplyWithError(ctx, "ERR RM_StringTruncate failed");
+    return REDISMODULE_OK;
+  }
+  size_t dmaLen;
+  char* valPtr = RedisModule_StringDMA(key, &dmaLen, REDISMODULE_READ|REDISMODULE_WRITE);
+  memmove(valPtr + argLen, valPtr, valLen);
+  memcpy(valPtr, argPtr, argLen);
+
+  RedisModule_ReplyWithLongLong(ctx, newLen);
+  return REDISMODULE_OK;
+}
+
 /* Helper function for SETRANGERAND: uppercases a string in place. */
 void stoupper(char *s) {
   size_t l = strlen(s);
@@ -358,6 +409,20 @@ int testCheckAnd(RedisModuleCtx *ctx) {
   return 0;
 }
 
+int testPrepend(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "set", "cc", "foo", "fghij");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "prepend", "cc", "foo", "abcde");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 10);
+  r = RedisModule_Call(ctx, "get", "c", "foo");
+  RMUtil_AssertReplyEquals(r,"abcdefghij");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
 int testSetRangeRand(RedisModuleCtx *ctx) {
   RedisModuleCallReply *r;
 
@@ -380,6 +445,7 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   }
 
   RMUtil_Test(testCheckAnd);
+  RMUtil_Test(testPrepend);
   RMUtil_Test(testSetRangeRand);
 
   RedisModule_ReplyWithSimpleString(ctx, "PASS");
@@ -393,6 +459,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
 
   if (RedisModule_CreateCommand(ctx, "checkand", CheckAndCommand,
                                 "write deny-oom", 1, 1, 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "prepend", PrependCommand,
+                                "write fast deny-oom", 1, 1,
+                                1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
   if (RedisModule_CreateCommand(ctx, "setrangerand", SetRangeRandCommand,
                                 "write fast deny-oom", 1, 1,
