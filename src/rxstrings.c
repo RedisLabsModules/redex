@@ -160,7 +160,7 @@ int PrependCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
       RedisModule_ReplyWithLongLong(ctx, argLen);
       return REDISMODULE_OK;
     }
-    RedisModule_ReplyWithError(ctx, "PREPEND ERR: RM_StringSet failed");
+    RedisModule_ReplyWithError(ctx, "ERR RM_StringSet failed");
     return REDISMODULE_OK;
   }
 
@@ -174,7 +174,7 @@ int PrependCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   size_t valLen = RedisModule_ValueLength(key);
   size_t newLen = argLen + valLen;
   if (RedisModule_StringTruncate(key, newLen) != REDISMODULE_OK) {
-    RedisModule_ReplyWithError(ctx, "PREPEND ERR: RM_StringTruncate failed");
+    RedisModule_ReplyWithError(ctx, "ERR RM_StringTruncate failed");
     return REDISMODULE_OK;
   }
   size_t dmaLen;
