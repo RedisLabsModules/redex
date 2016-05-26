@@ -72,7 +72,7 @@ On success, the reply depends on the actual command executed.
 
 Prepends a value to a String key.
 
-If key does not exist it is created and set as an empty string, so PREPEND will be similar to SET in this special case.
+If `key` does not exist it is created and set as an empty string, so `PREPEND` will be similar to [`SET`](http://redis.io/commands/set) in this special case.
 
 **Reply:** Integer, the length of the string after the prepend operation.
 
@@ -88,7 +88,7 @@ optional `charset` may be provided:
  * `ALNUM` - letters and digits
  * `PUNC` - all printable characters other than alphanumerics
  * `HEX` - hexadecimal: a-f, 0-9
- * `CURSE` - censored profanity (!@#$%^&?*)
+ * `CURSE` - censored profanity (!@#$%^&?\*)
  * `BINARY` - all characters between 0 and 255
  * `READABLE` - letters only, but more pronounceable
  * `TEXT` - this is the default, any printable character (union of `ALPHA` + `DIGIT` + `PUNC`)
@@ -234,7 +234,7 @@ Pops the element with the highest score from a Sorted Set.
 
 ## `ZADDCAPPED zset cap score member [score member ...]`
 
-> Time complexity: O(N*LogM) where N is the number of elements added and M is the number of elements in the Sorted Set.
+> Time complexity: O(N\*LogM) where N is the number of elements added and M is the number of elements in the Sorted Set.
 
 Adds members to a Sorted Set, keeping it at `cap` cardinality. Removes top scoring members as needed to meet the limit.
 
@@ -242,7 +242,7 @@ Adds members to a Sorted Set, keeping it at `cap` cardinality. Removes top scori
 
 ## `ZADDREVCAPPED zset cap score member [score member ...]`
 
-> Time complexity: O(N*LogM) where N is the number of elements added and M is the number of elements in the Sorted Set.
+> Time complexity: O(N\*LogM) where N is the number of elements added and M is the number of elements in the Sorted Set.
 
 Adds members to a Sorted Set, keeping it at `cap` cardinality. Removes bottom scoring members as needed to meet the limit.
 
@@ -250,7 +250,7 @@ Adds members to a Sorted Set, keeping it at `cap` cardinality. Removes bottom sc
 
 ## `MZRANK key ele [ele ...]`
 
-> Time complexity: O(N*LogM) where N is the number of elements passed as arguments to the command and M is the number of elements in the Sorted Set.
+> Time complexity: O(N\*LogM) where N is the number of elements passed as arguments to the command and M is the number of elements in the Sorted Set.
 
 A variadic variant for `ZRANK`, returns the ranks of multiple members in a Sorted Set.
 
@@ -258,7 +258,7 @@ A variadic variant for `ZRANK`, returns the ranks of multiple members in a Sorte
 
 ## `MZREVRANK key ele [ele ...]`
 
-> Time complexity: O(N*LogM) where N is the number of elements passed as arguments to the command and M is the number of elements in the Sorted Set.
+> Time complexity: O(N\*LogM) where N is the number of elements passed as arguments to the command and M is the number of elements in the Sorted Set.
 
 A variadic variant for `ZREVRANK`, returns the reverse ranks of multiple members in a Sorted Set.
 
@@ -266,7 +266,7 @@ A variadic variant for `ZREVRANK`, returns the reverse ranks of multiple members
 
 ## `MZSCORE key ele [ele ...]`
 
-> Time complexity: O(N*LogM) where N is the number of elements passed as arguments to the command and M is the number of elements in the Sorted Set.
+> Time complexity: O(N\*LogM) where N is the number of elements passed as arguments to the command and M is the number of elements in the Sorted Set.
 
 A variadic variant for `ZSCORE`, returns the scores of multiple members in a Sorted Set.
 
@@ -274,17 +274,17 @@ A variadic variant for `ZSCORE`, returns the scores of multiple members in a Sor
 
 ## `ZUNIONTOP K numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]`
 
-> Time complexity: O(numkeys*log(N) + K*log(numkeys)) where N is the number of elements in a Sorted Set.
+> Time complexity: O(numkeys\*log(N) + K\*log(numkeys)) where N is the number of elements in a Sorted Set.
 
-Union multiple sorted sets with min K elements returned.
+Union multiple Sorted Sets and return the `K` elements with lowest scores. Refer to [`ZUNIONSTORE`](http://redis.io/commands/zunionstore)'s documentation for details on using the command.
 
 **Reply:** Array reply, the top k elements (optionally with the score, in case the 'WITHSCORES' option is given).
 
 ## `ZUNIONREVTOP K numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]`
 
-> Time complexity: O(numkeys*log(N) + K*log(numkeys)) where N is the number of elements in a Sorted Set.
+> Time complexity: O(numkeys\*log(N) + K\*log(numkeys)) where N is the number of elements in a Sorted Set.
 
-Union multiple sorted sets with max K elements returned.
+Union multiple Sorted Sets and return the `K` elements with highest scores. Refer to [`ZUNIONSTORE`](http://redis.io/commands/zunionstore)'s documentation for details on using the command.
 
 **Reply:** Array reply, the top k elements (optionally with the score, in case the 'WITHSCORES' option is given).
 
@@ -294,7 +294,7 @@ This module provides extended Redis Geo Sets commands.
 
 ## `GEOCLUSTER geoset radius unit min-points [namespace]`
 
-> Time complexity: O(N*LogN) where N is the number of points in the Geo Set. 
+> Time complexity: O(N\*LogN) where N is the number of points in the Geo Set. 
 
 Density based spatial clustering with random sampling. Creates a set of Geo Sets from `geoset`, each being a cluster.
 `radius` is the maximum distance between near neighbours in the cluster, and `min-points` is a cluster's minimum size. 
