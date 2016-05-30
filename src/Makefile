@@ -19,7 +19,8 @@ else
         SHOBJ_LDFLAGS ?= -bundle -undefined dynamic_lookup
 endif
 
-CFLAGS = -I$(RM_INCLUDE_DIR) -g -fPIC -lc -lm -O3 -std=gnu99 
+CFLAGS = -I$(RM_INCLUDE_DIR) -g -fPIC -O3 -std=gnu99 -Wall
+LDFLAGS = -g -lc -lm
 CC=gcc
 .SUFFIXES: .c .so .o
 

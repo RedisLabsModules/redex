@@ -87,7 +87,7 @@ int PKeysCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
   size_t length = 0;
   RedisModuleString *scursor = RedisModule_CreateStringFromLongLong(ctx, 0);
-  unsigned long long lcursor;
+  long long lcursor;
   do {
     RedisModuleCallReply *rep = RedisModule_Call(ctx, "SCAN", "s", scursor);
 
@@ -139,7 +139,7 @@ int PDelCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   /* Scan the keyspace. */
   RedisModuleString *scursor = RedisModule_CreateStringFromLongLong(ctx, 0);
-  unsigned long long lcursor;
+  long long lcursor;
   unsigned long long deleted = 0;
   do {
     RedisModuleCallReply *rep = RedisModule_Call(ctx, "SCAN", "s", scursor);
@@ -163,7 +163,7 @@ int PDelCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     while (matched--) {
       RedisModuleString *str;
       Vector_Get(matches, matched, &str);
-      (RedisModuleString *)&matches
+      str = (RedisModuleString *)&matches
           ->data[matched * sizeof(RedisModuleString *)];
       RedisModule_FreeString(ctx, str);
     }
