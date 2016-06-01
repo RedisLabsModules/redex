@@ -24,6 +24,8 @@
 #include "../rmutil/vector.h"
 #include "../rmutil/heap.h"
 
+#include "khash.h"
+
 #define RM_MODULE_NAME "rxzsets"
 
 /*
@@ -214,6 +216,8 @@ int __zsetentry_greater(void *e1, void *e2) {
   return x < 0 ? 1 : (x > 0 ? -1 : 0);
 }
 
+KHASH_SET_INIT_STR(32)
+
 /*
 * ZUNIONTOP | ZUNIONREVTOP k numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]
 * Union multiple sorted sets with top K elements returned.
@@ -304,19 +308,27 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   }
   Make_Heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
 
+  khash_t(32) *h = kh_init(32);
   size_t reply_count = 0;
   RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
-  for (size_t i = 0; i < k && v->top != 0; i++) {
+  while (kh_size(h) < k && v->top != 0) {
     // pop from heap
     Heap_Pop(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
     ZsetEntry *entry = (ZsetEntry *) (v->data + ((v->top - 1) * v->elemSize));
-    // reply to client
-    RedisModule_ReplyWithString(ctx, entry->element);
-    reply_count++;
-    if (with_scores) {
-      RedisModule_ReplyWithDouble(ctx, entry->score * entry->weight);
+
+    // de-duplicate
+    int ret = 0;
+    kh_put(32, h, RedisModule_StringPtrLen(entry->element, NULL), &ret);
+    if (ret > 0) {
+      // reply to client
+      RedisModule_ReplyWithString(ctx, entry->element);
       reply_count++;
+      if (with_scores) {
+        RedisModule_ReplyWithDouble(ctx, entry->score * entry->weight);
+        reply_count++;
+      }
     }
+
     // get the next element
     if ((rev ? RedisModule_ZsetRangePrev(entry->key) : RedisModule_ZsetRangeNext(entry->key)) == 0) {
       RedisModule_ZsetRangeStop(entry->key);
@@ -327,6 +339,8 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
   }
   RedisModule_ReplySetArrayLength(ctx, reply_count);
+
+  kh_destroy(32, h);
   Vector_Free(v);
 
   return REDISMODULE_OK;
