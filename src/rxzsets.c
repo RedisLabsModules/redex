@@ -216,7 +216,22 @@ int __zsetentry_greater(void *e1, void *e2) {
   return x < 0 ? 1 : (x > 0 ? -1 : 0);
 }
 
-KHASH_SET_INIT_STR(32)
+static inline khint_t StringHash(RedisModuleString *str) {
+  size_t len;
+  const char* s = RedisModule_StringPtrLen(str, &len);
+
+  if (len == 0) {
+    return 0;
+  } else {
+    khint_t h = (khint_t) s[0];
+    for (size_t i = 1; i < len; ++i) {
+      h = (h << 5) - h + (khint_t) s[i];
+    }
+    return h;
+  }
+}
+
+KHASH_INIT(32, RedisModuleString*, char, 0, StringHash, RMUtil_StringEquals)
 
 /*
 * ZUNIONTOP | ZUNIONREVTOP k numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]
@@ -318,7 +333,7 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     // de-duplicate
     int ret = 0;
-    kh_put(32, h, RedisModule_StringPtrLen(entry->element, NULL), &ret);
+    kh_put(32, h, entry->element, &ret);
     if (ret > 0) {
       // reply to client
       RedisModule_ReplyWithString(ctx, entry->element);
