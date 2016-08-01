@@ -267,19 +267,15 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
   } else if (argc > 3 + numkeys) {
     has_weights = !strcasecmp("weights", RedisModule_StringPtrLen(argv[3 + numkeys], NULL));
-    with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[argc - 1], NULL));
-  }
-
-  // validate argc
-  if (has_weights) {
-    if (argc != 4 + 2 * numkeys + with_scores) {
-      /* TODO: handle this once the getkey-api allows signalling errors */
-      return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
-    }
-  } else {
-    if (argc != 3 + numkeys + with_scores) {
-      /* TODO: handle this once the getkey-api allows signalling errors */
-      return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
+    if (has_weights) {
+      if (argc < 4 + 2 * numkeys) {
+        /* TODO: handle this once the getkey-api allows signalling errors */
+        return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
+      } else if (argc > 4 + 2 * numkeys) {
+        with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[4 + 2 * numkeys], NULL));
+      }
+    } else {
+      with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[3 + numkeys], NULL));
     }
   }
 
