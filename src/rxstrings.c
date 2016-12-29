@@ -136,6 +136,59 @@ int CheckAndCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 }
 
 /*
+* CHOP key count
+* Removes characters from a value to a String key.
+* If 'count' is positive or zero, it removes from the right of the string;
+* if 'count' is negative, it removes from the left of the string.
+* If |count| is greater than the string length, the value is set as an empty string.
+* It is an error if the value is not a String.
+* Integer Reply: the length of the string after the chop operation.
+*/
+int ChopCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  if (argc != 3) {
+    return RedisModule_WrongArity(ctx);
+  }
+  RedisModule_AutoMemory(ctx);
+
+  /* Obtain key and extract offset argument. */
+  RedisModuleKey *key =
+      RedisModule_OpenKey(ctx, argv[1], REDISMODULE_READ | REDISMODULE_WRITE);
+  long long count;
+  if (RedisModule_StringToLongLong(argv[2], &count) != REDISMODULE_OK) {
+    RedisModule_ReplyWithError(ctx, "ERR invalid count");
+    return REDISMODULE_ERR;
+  }
+
+  /* Key must be a string. */
+  if (RedisModule_KeyType(key) != REDISMODULE_KEYTYPE_STRING) {
+    RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
+    return REDISMODULE_OK;
+  }
+
+  /* Calculate new length, protecting against overchop */
+  size_t valLen = RedisModule_ValueLength(key);
+  size_t absCount = (count < 0) ? -count : count;
+  size_t newLen = (valLen < absCount) ? 0 : (valLen - absCount);
+
+  /* If we chop from the left, we need to shift the characters,
+   * but only bother if we aren't zeroing the value */
+  if (count < 0 && newLen != 0) {
+    size_t dmaLen;
+    char* valPtr = RedisModule_StringDMA(key, &dmaLen, REDISMODULE_READ|REDISMODULE_WRITE);
+    memmove(valPtr, valPtr + absCount, newLen);
+  }
+
+  /* Truncate to new length */
+  if (RedisModule_StringTruncate(key, newLen) != REDISMODULE_OK) {
+    RedisModule_ReplyWithError(ctx, "ERR RM_StringTruncate failed");
+    return REDISMODULE_ERR;
+  }
+
+  RedisModule_ReplyWithLongLong(ctx, newLen);
+  return REDISMODULE_OK;
+}
+
+/*
 * PREPEND key value
 * Prepends a value to a String key.
 * If key does not exist it is created and set as an empty string,
@@ -409,6 +462,44 @@ int testCheckAnd(RedisModuleCtx *ctx) {
   return 0;
 }
 
+int testChop(RedisModuleCtx *ctx) {
+  RedisModuleCallReply *r;
+
+  r = RedisModule_Call(ctx, "set", "cc", "foo", "abcde");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "chop", "cc", "foo", "-2");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "get", "c", "foo");
+  RMUtil_AssertReplyEquals(r,"cde");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  r = RedisModule_Call(ctx, "set", "cc", "foo", "abcde");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "chop", "cc", "foo", "2");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 3);
+  r = RedisModule_Call(ctx, "get", "c", "foo");
+  RMUtil_AssertReplyEquals(r,"abc");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  r = RedisModule_Call(ctx, "set", "cc", "foo", "abcde");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "chop", "cc", "foo", "-10");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 0);
+  r = RedisModule_Call(ctx, "get", "c", "foo");
+  RMUtil_AssertReplyEquals(r,"");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  r = RedisModule_Call(ctx, "set", "cc", "foo", "abcde");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "chop", "cc", "foo", "10");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 0);
+  r = RedisModule_Call(ctx, "get", "c", "foo");
+  RMUtil_AssertReplyEquals(r,"");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  return 0;
+}
+
 int testPrepend(RedisModuleCtx *ctx) {
   RedisModuleCallReply *r;
 
@@ -445,6 +536,7 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   }
 
   RMUtil_Test(testCheckAnd);
+  RMUtil_Test(testChop);
   RMUtil_Test(testPrepend);
   RMUtil_Test(testSetRangeRand);
 
@@ -459,6 +551,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
 
   if (RedisModule_CreateCommand(ctx, "checkand", CheckAndCommand,
                                 "write deny-oom", 1, 1, 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+  if (RedisModule_CreateCommand(ctx, "chop", ChopCommand,
+                                "write fast deny-oom", 1, 1,
+                                1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
   if (RedisModule_CreateCommand(ctx, "prepend", PrependCommand,
                                 "write fast deny-oom", 1, 1,
