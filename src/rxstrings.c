@@ -137,10 +137,11 @@ int CheckAndCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
 /*
 * CHOP key count
-* Removes characters from a value to a String key.
-* If 'count' is positive or zero, it removes from the right of the string;
+* Removes characters from a value of a String key.
+* If 'count' is positive, it removes from the right of the string;
 * if 'count' is negative, it removes from the left of the string.
 * If |count| is greater than the string length, the value is set as an empty string.
+* If 'count' is zero, then the value remains unchanged.
 * It is an error if the value is not a String.
 * Integer Reply: the length of the string after the chop operation.
 */
@@ -167,6 +168,10 @@ int ChopCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   /* Calculate new length, protecting against overchop */
   size_t valLen = RedisModule_ValueLength(key);
+  if (count == 0) {
+    RedisModule_ReplyWithLongLong(ctx, valLen);
+    return REDISMODULE_OK;
+  }
   size_t absCount = (count < 0) ? -count : count;
   size_t newLen = (valLen < absCount) ? 0 : (valLen - absCount);
 
@@ -495,6 +500,14 @@ int testChop(RedisModuleCtx *ctx) {
   RMUtil_Assert(RedisModule_CallReplyInteger(r) == 0);
   r = RedisModule_Call(ctx, "get", "c", "foo");
   RMUtil_AssertReplyEquals(r,"");
+  r = RedisModule_Call(ctx, "FLUSHALL", "");
+
+  r = RedisModule_Call(ctx, "set", "cc", "foo", "abcde");
+  RMUtil_AssertReplyEquals(r,"OK");
+  r = RedisModule_Call(ctx, "chop", "cc", "foo", "0");
+  RMUtil_Assert(RedisModule_CallReplyInteger(r) == 5);
+  r = RedisModule_Call(ctx, "get", "c", "foo");
+  RMUtil_AssertReplyEquals(r,"abcde");
   r = RedisModule_Call(ctx, "FLUSHALL", "");
 
   return 0;

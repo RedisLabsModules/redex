@@ -66,6 +66,18 @@ Note: the key shouldn't be repeated for the executed command.
 **Reply:** Null if not equal or for non existing key when the `XX` flag is used.
 On success, the reply depends on the actual command executed.
 
+## `CHOP key count`
+
+Removes characters from a value of a String key.
+
+* If 'count' is positive, it removes from the right of the string;
+* if 'count' is negative, it removes from the left of the string.
+* If |count| is greater than the string length, the value is set as an empty string.
+* If 'count' is zero, then the value remains unchanged.
+* It is an error if the value is not a String.
+
+**Reply:** Integer, the length of the string after the chop operation.
+
 ## `PREPEND key value`
 
 > Time complexity: O(1). The amortized time complexity is O(1) assuming the prepended value is small and the already present value is of any size, since the dynamic string library used by Redis will double the free space available on every reallocation.
