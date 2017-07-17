@@ -163,7 +163,7 @@ int ChopCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   /* Key must be a string. */
   if (RedisModule_KeyType(key) != REDISMODULE_KEYTYPE_STRING) {
     RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
-    return REDISMODULE_OK;
+    return REDISMODULE_ERR;
   }
 
   /* Calculate new length, protecting against overchop */
@@ -237,7 +237,7 @@ int PrependCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   /* Otherwise key must be a string. */
   if (RedisModule_KeyType(key) != REDISMODULE_KEYTYPE_STRING) {
     RedisModule_ReplyWithError(ctx, REDISMODULE_ERRORMSG_WRONGTYPE);
-    return REDISMODULE_OK;
+    return REDISMODULE_ERR;
   }
 
   /* Prepend the string: 1) expand string, 2) shift oldVal via memmove, 3) prepend arg */
