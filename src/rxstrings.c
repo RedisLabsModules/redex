@@ -175,6 +175,18 @@ int ChopCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   size_t absCount = (count < 0) ? -count : count;
   size_t newLen = (valLen < absCount) ? 0 : (valLen - absCount);
 
+  /* Work around https://github.com/antirez/redis/issues/3717
+   * We use RM_StringSet to an empty string instead */
+  if (newLen == 0) {
+    RedisModuleString* emptyStr = RedisModule_CreateString(ctx, "", 0);
+    if (RedisModule_StringSet(key, emptyStr) != REDISMODULE_OK) {
+      RedisModule_ReplyWithError(ctx, "ERR RM_SetString empty failed");
+      return REDISMODULE_ERR;
+    }
+    RedisModule_ReplyWithLongLong(ctx, 0);
+    return REDISMODULE_OK;
+  }
+
   /* If we chop from the left, we need to shift the characters,
    * but only bother if we aren't zeroing the value */
   if (count < 0 && newLen != 0) {
