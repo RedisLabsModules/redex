@@ -114,6 +114,15 @@ Credit: Meni Katz
 
 **Reply:** Integer, the length of the String after it was modified.
 
+## `STRPOP key`
+
+Gets the value at `key`, deletes `key`, then returns the value.
+It is equivalent to an atomic [GET](https://redis.io/commands/get) and [DEL](https://redis.io/commands/del).
+
+ * An error is returned if the key exists and does not hold a string.
+
+**Reply:** String, the value at `key` or NULL if `key` didn't exist.
+
 # rxhashes
 
 This module provides extended Redis Hashes commands.
