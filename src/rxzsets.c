@@ -24,6 +24,8 @@
 #include "../rmutil/vector.h"
 #include "../rmutil/heap.h"
 
+#include "khash.h"
+
 #define RM_MODULE_NAME "rxzsets"
 
 /*
@@ -214,6 +216,23 @@ int __zsetentry_greater(void *e1, void *e2) {
   return x < 0 ? 1 : (x > 0 ? -1 : 0);
 }
 
+static inline khint_t StringHash(RedisModuleString *str) {
+  size_t len;
+  const char* s = RedisModule_StringPtrLen(str, &len);
+
+  if (len == 0) {
+    return 0;
+  } else {
+    khint_t h = (khint_t) s[0];
+    for (size_t i = 1; i < len; ++i) {
+      h = (h << 5) - h + (khint_t) s[i];
+    }
+    return h;
+  }
+}
+
+KHASH_INIT(32, RedisModuleString*, char, 0, StringHash, RMUtil_StringEquals)
+
 /*
 * ZUNIONTOP | ZUNIONREVTOP k numkeys key [key ...] [WEIGHTS weight [weight ...]] [WITHSCORES]
 * Union multiple sorted sets with top K elements returned.
@@ -248,19 +267,15 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
   } else if (argc > 3 + numkeys) {
     has_weights = !strcasecmp("weights", RedisModule_StringPtrLen(argv[3 + numkeys], NULL));
-    with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[argc - 1], NULL));
-  }
-
-  // validate argc
-  if (has_weights) {
-    if (argc != 4 + 2 * numkeys + with_scores) {
-      /* TODO: handle this once the getkey-api allows signalling errors */
-      return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
-    }
-  } else {
-    if (argc != 3 + numkeys + with_scores) {
-      /* TODO: handle this once the getkey-api allows signalling errors */
-      return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
+    if (has_weights) {
+      if (argc < 4 + 2 * numkeys) {
+        /* TODO: handle this once the getkey-api allows signalling errors */
+        return RedisModule_IsKeysPositionRequest(ctx) ? REDISMODULE_OK : RedisModule_WrongArity(ctx);
+      } else if (argc > 4 + 2 * numkeys) {
+        with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[4 + 2 * numkeys], NULL));
+      }
+    } else {
+      with_scores = !strcasecmp("withscores", RedisModule_StringPtrLen(argv[3 + numkeys], NULL));
     }
   }
 
@@ -304,19 +319,27 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   }
   Make_Heap(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
 
+  khash_t(32) *h = kh_init(32);
   size_t reply_count = 0;
   RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
-  for (size_t i = 0; i < k && v->top != 0; i++) {
+  while (kh_size(h) < k && v->top != 0) {
     // pop from heap
     Heap_Pop(v, 0, v->top, rev ? __zsetentry_less : __zsetentry_greater);
     ZsetEntry *entry = (ZsetEntry *) (v->data + ((v->top - 1) * v->elemSize));
-    // reply to client
-    RedisModule_ReplyWithString(ctx, entry->element);
-    reply_count++;
-    if (with_scores) {
-      RedisModule_ReplyWithDouble(ctx, entry->score * entry->weight);
+
+    // de-duplicate
+    int ret = 0;
+    kh_put(32, h, entry->element, &ret);
+    if (ret > 0) {
+      // reply to client
+      RedisModule_ReplyWithString(ctx, entry->element);
       reply_count++;
+      if (with_scores) {
+        RedisModule_ReplyWithDouble(ctx, entry->score * entry->weight);
+        reply_count++;
+      }
     }
+
     // get the next element
     if ((rev ? RedisModule_ZsetRangePrev(entry->key) : RedisModule_ZsetRangeNext(entry->key)) == 0) {
       RedisModule_ZsetRangeStop(entry->key);
@@ -327,6 +350,8 @@ int ZUnionTopKCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
   }
   RedisModule_ReplySetArrayLength(ctx, reply_count);
+
+  kh_destroy(32, h);
   Vector_Free(v);
 
   return REDISMODULE_OK;
