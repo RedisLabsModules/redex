@@ -1,3 +1,6 @@
+[![GitHub issues](https://img.shields.io/github/release/RedisLabsModules/redex.svg)](https://github.com/RedisLabsModules/redex/releases/latest)
+[![CircleCI](https://circleci.com/gh/RedisLabsModules/redex/tree/master.svg?style=svg)](https://circleci.com/gh/RedisLabsModules/redex/tree/master)
+
 RedisEx: extension modules to Redis' native data types and commands
 ===
 
