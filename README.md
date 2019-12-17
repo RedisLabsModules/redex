@@ -69,6 +69,18 @@ Note: the key shouldn't be repeated for the executed command.
 **Reply:** Null if not equal or for non existing key when the `XX` flag is used.
 On success, the reply depends on the actual command executed.
 
+## `CHOP key count`
+
+Removes characters from a value of a String key.
+
+* If 'count' is positive, it removes from the right of the string;
+* if 'count' is negative, it removes from the left of the string.
+* If |count| is greater than the string length, the value is set as an empty string.
+* If 'count' is zero, then the value remains unchanged.
+* It is an error if the value is not a String.
+
+**Reply:** Integer, the length of the string after the chop operation.
+
 ## `PREPEND key value`
 
 > Time complexity: O(1). The amortized time complexity is O(1) assuming the prepended value is small and the already present value is of any size, since the dynamic string library used by Redis will double the free space available on every reallocation.
@@ -104,6 +116,15 @@ Additionally, an optional `charcase` argument can be provided:
 Credit: Meni Katz
 
 **Reply:** Integer, the length of the String after it was modified.
+
+## `STRPOP key`
+
+Gets the value at `key`, deletes `key`, then returns the value.
+It is equivalent to an atomic [GET](https://redis.io/commands/get) and [DEL](https://redis.io/commands/del).
+
+ * An error is returned if the key exists and does not hold a string.
+
+**Reply:** String, the value at `key` or NULL if `key` didn't exist.
 
 # rxhashes
 
