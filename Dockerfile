@@ -8,7 +8,7 @@ RUN set -ex;\
     make all;
 
 # Package the runner
-FROM redis:latest
+FROM redis:7-bullseye
 ENV LIBDIR /usr/lib/redis/modules
 WORKDIR /data
 RUN set -ex;\
